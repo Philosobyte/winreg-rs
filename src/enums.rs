@@ -13,6 +13,11 @@ pub use windows_sys::Win32::System::Registry::{
     KEY_WOW64_32KEY, KEY_WOW64_64KEY, KEY_WOW64_RES, KEY_WRITE, REG_PROCESS_APPKEY,
 };
 
+pub use windows_sys::Win32::System::Registry::{
+    REG_NOTIFY_CHANGE_NAME, REG_NOTIFY_CHANGE_ATTRIBUTES, REG_NOTIFY_CHANGE_LAST_SET,
+    REG_NOTIFY_CHANGE_SECURITY, REG_NOTIFY_THREAD_AGNOSTIC,
+};
+
 macro_rules! winapi_enum{
     ($t:ident, $doc:expr => [$($v:ident),*]) => (
         #[doc=$doc]

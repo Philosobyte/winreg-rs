@@ -15,9 +15,13 @@ use std::ffi::OsStr;
 use std::io;
 use std::mem::transmute;
 use std::ptr;
+use windows_sys::w;
 use windows_sys::Win32::Foundation;
-use windows_sys::Win32::System::Registry;
+use windows_sys::Win32::Foundation::{BOOL, HANDLE};
+use windows_sys::Win32::System::{Registry, Threading};
 pub use windows_sys::Win32::System::Registry::HKEY;
+use windows_sys::Win32::System::Registry::REG_NOTIFY_FILTER;
+use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 /// Handle of opened registry key
 #[derive(Debug)]
@@ -776,6 +780,46 @@ impl RegKey {
         let mut decoder = crate::decoder::Decoder::from_key(self)?;
         T::deserialize(&mut decoder)
     }
+
+    /// Wait for this key or any of its values to change.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::error::Error;
+    /// # use winreg::RegKey;
+    /// # use winreg::enums::*;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    /// let win32_error = hklm.wait_for_key_or_value_change(true, REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_ATTRIBUTES, 60000u32);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn wait_for_key_or_value_change(
+        &self, watch_subtree: bool,
+        notify_filters: REG_NOTIFY_FILTER,
+        timeout_milliseconds: u32
+    ) -> io::Result<()> {
+        match unsafe {
+            let reg_key_wait_event: HANDLE = Threading::CreateEventW(
+                ptr::null(), BOOL::from(false), BOOL::from(false), w!("RegKeyWaitEvent")
+            );
+
+            Registry::RegNotifyChangeKeyValue(
+                self.hkey,
+                BOOL::from(watch_subtree),
+                notify_filters,
+                reg_key_wait_event,
+                BOOL::from(true)
+            );
+
+            WaitForSingleObject(reg_key_wait_event, timeout_milliseconds)
+        } {
+            WAIT_OBJECT_0 => Ok(()),
+            err => werr!(err),
+        }
+    }
+
 
     fn close_(&mut self) -> io::Result<()> {
         // don't try to close predefined keys
